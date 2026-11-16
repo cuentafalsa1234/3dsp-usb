@@ -40,8 +40,35 @@
 #include "tdsp_time.h"
 //static char* TDSP_FILE_INDICATOR="TIMER";
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+/* Modern kernel wrapper: emulate the old (fn, data) timer API */
+struct tdsp_timer_list {
+	struct timer_list	tl;	/* must be first member */
+	void			(*fn)(unsigned long);
+	unsigned long		data;
+};
+
+static void tdsp_timer_wrapper(struct timer_list *tl)
+{
+	struct tdsp_timer_list *t = from_timer(t, tl, tl);
+	t->fn(t->data);
+}
+#endif
+
 void tdsp_timer_init(PTDSP_TIMER t, void (*timeout_handler)(unsigned long), unsigned long data)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+	struct tdsp_timer_list * tl;
+	tl = (struct tdsp_timer_list *)tdsp_memory_alloc(sizeof(struct tdsp_timer_list));
+	if(tl == NULL)
+	{
+		printk("error,tdsp_timer_init alloc memory for timer failed\n");
+	}
+	tl->fn = timeout_handler;
+	tl->data = data;
+	timer_setup(&tl->tl, tdsp_timer_wrapper, 0);
+	t->timer = &tl->tl;
+#else
     struct timer_list * tl;
     tl = (struct timer_list *)tdsp_memory_alloc(sizeof(struct timer_list));
     if(tl == NULL)
@@ -56,7 +83,7 @@ void tdsp_timer_init(PTDSP_TIMER t, void (*timeout_handler)(unsigned long), unsi
 	//
 	t->timer = tl;
     init_timer(tl);
-
+#endif
 }
 
 
@@ -140,30 +167,30 @@ unsigned int	tdsp_get_random_dword(void)
 
 unsigned char  time_downout_duration(void)
 {
-	struct timeval		ct_time;
-	static struct timeval	st_time;
+	struct timespec64		ct_time;
+	static struct timespec64	st_time;
 	int				count_ms;
 	unsigned char		ret = 0;
 
-	if ((st_time.tv_sec == 0) && (st_time.tv_usec == 0))
+	ktime_get_coarse_real_ts64(&ct_time);
+
+	if (st_time.tv_sec == 0)
 	{
-		do_gettimeofday(&st_time);	
+		st_time = ct_time;
 		return 1;
 	}
-	
-	do_gettimeofday(&ct_time);	
 
 	if (ct_time.tv_sec >= st_time.tv_sec)
 	{
-		count_ms = (ct_time.tv_sec - st_time.tv_sec) * 1000 + (ct_time.tv_usec - st_time.tv_usec);
+		count_ms = (int)(ct_time.tv_sec - st_time.tv_sec) * 1000
+			 + (int)(ct_time.tv_nsec - st_time.tv_nsec) / 1000;
 		if (count_ms > 1000)
 		{
 			ret = 1;
 		}
 	}
-	
-	st_time.tv_sec = ct_time.tv_sec;
-	st_time.tv_usec = ct_time.tv_usec;
-	
+
+	st_time = ct_time;
+
 	return ret;
 }

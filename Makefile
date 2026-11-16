@@ -118,6 +118,7 @@ DEFS += -DBT_INQUIRY_RESULT_WITH_RSSI_SUPPORT
 EXTRA_CFLAGS = \
 	$(DEFS) \
 	-DDBG \
+	-Wno-date-time \
 	-Wno-unused-variable \
 	-Wno-parentheses \
 	-Wno-format \

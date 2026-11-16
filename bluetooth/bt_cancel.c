@@ -37,6 +37,17 @@ VOID CancelInProgressRead(PBT_DEVICE_EXT devExt);
 
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+VOID BtWatchdogTimer(struct timer_list *t)
+{
+	struct timer_list *compat_ptr = t;
+	PBT_DEVICE_EXT devExt;
+	NTSTATUS Status;
+	UINT32	ret;
+
+    ENTER_FUNC();
+	devExt = from_timer(devExt, compat_ptr, watchDogTimer);
+#else
 VOID BtWatchdogTimer(ULONG_PTR DeviceObject)
 {
 	PBT_DEVICE_EXT devExt;
@@ -45,6 +56,7 @@ VOID BtWatchdogTimer(ULONG_PTR DeviceObject)
 
     ENTER_FUNC();
 	devExt = (PBT_DEVICE_EXT)DeviceObject;
+#endif
 
     if(FALSE == BtIsPluggedIn(devExt))
 	{

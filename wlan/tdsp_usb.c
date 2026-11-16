@@ -82,6 +82,7 @@ int tdsp_usb_ctrl_msg(void * usbdev,
 {
     int ret;
     int pipe;
+    void *dma_buf = NULL;
     PTDSP_USB_CTRLREQ req = (PTDSP_USB_CTRLREQ)request;
     // TODO: need to check input para validity
     if(type == USB_WRITE_OP)
@@ -89,21 +90,38 @@ int tdsp_usb_ctrl_msg(void * usbdev,
         type = USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE;
         pipe = usb_sndctrlpipe((struct usb_device *)usbdev, ep);
     }
-    else 
-    {   
+    else
+    {
         type = USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE;
         pipe = usb_rcvctrlpipe((struct usb_device *)usbdev, ep);
     }
 
-    ret = usb_control_msg(usbdev, 
+    /* Modern USB core refuses to DMA-map stack buffers (-EAGAIN).
+     * Stage the transfer through a heap buffer like the BT driver does. */
+    if (len > 0 && len <= 4096 && buffer != NULL)
+    {
+        dma_buf = tdsp_memory_alloc(len);
+        if (dma_buf == NULL)
+            return -ENOMEM;
+        if (type & USB_DIR_OUT)
+            memcpy(dma_buf, buffer, len);
+    }
+
+    ret = usb_control_msg(usbdev,
 						pipe,
 						req->request,					  //request value
 						type,					 //request type
 						req->value,					//valuse
 						req->index,					//index
-						buffer,		//data buffer
-						len,
-						0);				//timeout is 10s
+						(dma_buf ? dma_buf : buffer),		//data buffer
+						(dma_buf ? len : 0),
+						10000);				//timeout 10s
+    if (dma_buf != NULL)
+    {
+        if (ret > 0 && (type & USB_DIR_IN))
+            memcpy(buffer, dma_buf, (ret < len) ? ret : len);
+        tdsp_memory_free(dma_buf);
+    }
    return ret;
 }
 

@@ -1,3 +1,4 @@
+#include <linux/vmalloc.h>
 
 #include "usbwlan_syscall.h"
 #include "tdsp_debug.h"

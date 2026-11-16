@@ -210,7 +210,11 @@ VOID BtProcessRxAFHChBadFrame(PBT_DEVICE_EXT devExt, UINT32 BadChanNum);
 VOID BtInitializeTimer(PBT_DEVICE_EXT devExt);
 // Timeout function
 VOID BtTriggerRcv(ULONG_PTR SystemContext);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+VOID BtWatchdogTimer(struct timer_list *t);
+#else
 VOID BtWatchdogTimer(ULONG_PTR DeviceObject);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21)   
 VOID BtWatchdogItem(struct work_struct *pwork);
 #else

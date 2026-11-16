@@ -1668,6 +1668,17 @@ NTSTATUS UsbProcessInt(PBT_DEVICE_EXT devExt, PVOID pBuffer)
 
 
 	IntType = *(PUINT8)pBuffer;
+	/* debug: dump every interrupt received from the DSP (activar solo si
+	 * se investiga el protocolo DSP <-> driver; genera una linea por
+	 * tick de ~1 s durante el inquiry scan) */
+	{
+#if 0
+		UINT32 dbg_w1 = *((PUINT32)((PUINT8)pBuffer + 1));
+		UINT32 dbg_w2 = *((PUINT32)((PUINT8)pBuffer + 5));
+		printk("UsbProcessInt: type=0x%02x w1=0x%08x w2=0x%08x\n", IntType, dbg_w1, dbg_w2);
+#endif
+		(void)IntType;
+	}
 	switch (IntType)
 	{
 		case USB_INTERRUPT_TYPE_NULL:
@@ -2139,7 +2150,7 @@ NTSTATUS UsbVendorRequest(PBT_DEVICE_EXT devExt, PVENDOR_CMD_PARAMETERS VenderCm
 {
 	unsigned int pipe;
 	int	ret;
-	
+	void *dma_buf = NULL;
 
 	if(FALSE == BtIsPluggedIn(devExt))
 	{
@@ -2151,18 +2162,44 @@ NTSTATUS UsbVendorRequest(PBT_DEVICE_EXT devExt, PVENDOR_CMD_PARAMETERS VenderCm
 	else
 		pipe = usb_sndctrlpipe(devExt->usb_device, INDEX_EP_CTRL);
 
-	ret = usb_control_msg(devExt->usb_device, 
+	/* Modern USB core refuses to DMA-map stack buffers (-EAGAIN).
+	 * Route the transfer through a heap buffer instead. */
+	if (VenderCmdParameters->TransferBufferLength > 0 &&
+	    VenderCmdParameters->TransferBufferLength <= 4096 &&
+	    VenderCmdParameters->TransferBuffer != NULL)
+	{
+		dma_buf = kmalloc(VenderCmdParameters->TransferBufferLength, GFP_NOIO);
+		if (dma_buf == NULL)
+			return STATUS_INSUFFICIENT_RESOURCES;
+		if (VenderCmdParameters->bIn != VENDOR_CMD_IN)
+			memcpy(dma_buf, VenderCmdParameters->TransferBuffer,
+			       VenderCmdParameters->TransferBufferLength);
+	}
+
+	ret = usb_control_msg(devExt->usb_device,
 						pipe,
 						VenderCmdParameters->Request,  					//request value
 						VenderCmdParameters->RequestType, 					//request type
 						VenderCmdParameters->Value,					//valuse
 						VenderCmdParameters->Index,					//index
-						VenderCmdParameters->TransferBuffer,	//data buffer
-						VenderCmdParameters->TransferBufferLength,
-						0				//timeout is 10s
+						(dma_buf ? dma_buf : VenderCmdParameters->TransferBuffer),	//data buffer
+						(dma_buf ? VenderCmdParameters->TransferBufferLength : 0),
+						10000				//timeout is 10s
 						);
+	if (dma_buf != NULL)
+	{
+		if (ret > 0 && VenderCmdParameters->bIn == VENDOR_CMD_IN)
+			memcpy(VenderCmdParameters->TransferBuffer, dma_buf,
+			       min_t(int, ret, VenderCmdParameters->TransferBufferLength));
+		kfree(dma_buf);
+	}
 	if(ret < 0)
 	{
+		printk("UsbVendorRequest FAIL req=0x%02x type=0x%02x val=0x%04x idx=0x%04x len=%d ret=%d usb_state=%d\n",
+		       VenderCmdParameters->Request, VenderCmdParameters->RequestType,
+		       VenderCmdParameters->Value, VenderCmdParameters->Index,
+		       VenderCmdParameters->TransferBufferLength, ret,
+		       (int)devExt->usb_device->state);
 		BT_DBGEXT(ZONE_USB | LEVEL0, "UsbVendorRequest---usb_control_msg return failure:%d\n", ret);
 		return STATUS_UNSUCCESSFUL;
 		

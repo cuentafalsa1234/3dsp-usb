@@ -278,7 +278,9 @@ typedef struct _BT_FRAG
 	// Timer used for tx data
 	struct timer_list   TxTimer;
 
-	
+	// pointer back to the device context (added for modern kernel timers)
+	PBT_DEVICE_EXT      devExt;
+
 } BT_FRAG_T,  *PBT_FRAG_T;
 
 
@@ -341,7 +343,11 @@ VOID Frag_ExtentAutoSelAclPacketType(PBT_DEVICE_EXT devExt, PCONNECT_DEVICE_T pC
 VOID Frag_InitScoRxBuffer(PBT_DEVICE_EXT devExt, PCONNECT_DEVICE_T pConnectDevice);
 NTSTATUS Frag_GetFragPacketType(PBT_DEVICE_EXT devExt, PCONNECT_DEVICE_T pConnectDevice, UINT32 len, PUINT8 pPacketType);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+VOID Frag_DataSendingTimer(struct timer_list *t);
+#else
 VOID Frag_DataSendingTimer(ULONG_PTR SystemContext);
+#endif
 VOID Frag_ListRebuild(PBT_DEVICE_EXT devExt, UINT8 ListFlag);
 VOID Frag_ListRebuildForSco(PBT_DEVICE_EXT devExt);
 VOID Frag_StopQueue(PBT_DEVICE_EXT devExt, UINT8 ListFlag);

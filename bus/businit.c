@@ -32,7 +32,7 @@ void SetGlogalFdoData( PFDO_DEVICE_DATA pFdoData );
 FDO_DEVICE_DATA *GetGlogalFdoData( void );
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-int tdspbus_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg );
+long tdspbus_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg );
 static struct file_operations tdspbus_fops =
 {
     .owner = THIS_MODULE, .unlocked_ioctl = tdspbus_ioctl, .open = tdspbus_open, .release = tdspbus_release,

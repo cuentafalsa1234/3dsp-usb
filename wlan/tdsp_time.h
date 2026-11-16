@@ -64,12 +64,7 @@
 static inline unsigned int tdsp_ticks_to_ms(unsigned int ticks)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0))
-	struct timeval time;
-	memset(&time, sizeof(time), 0);
-
-	jiffies_to_timeval(ticks, &time);
-
-	return ((time.tv_sec*1000) + (time.tv_usec/1000));
+	return (jiffies_to_usecs(ticks) / 1000);
 #else
 	return ticks*1000/HZ;
 #endif
@@ -80,19 +75,13 @@ static inline unsigned int tdsp_ticks_to_ms(unsigned int ticks)
 static inline unsigned long long tdsp_ms_to_ticks(unsigned int ms)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0))
-	struct timeval time;
-	tdsp_memset(&time, sizeof(time), 0);
-
-	time.tv_sec = 0;
-	time.tv_usec = (suseconds_t)ms * 1000;
-
-	return ( unsigned long long)timeval_to_jiffies(&time);
+	return ( unsigned long long)msecs_to_jiffies(ms);
 #else
 	return ms*HZ/1000;
 #endif
 }
 
-//delay about ms ºÁÃë, NOTE: call thsi fcn will cause thread schedule, drop the rest time slice
+//delay about ms ï¿½ï¿½ï¿½ï¿½, NOTE: call thsi fcn will cause thread schedule, drop the rest time slice
 static inline void tdsp_sleep(unsigned int delay_ms)
 {
 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0))

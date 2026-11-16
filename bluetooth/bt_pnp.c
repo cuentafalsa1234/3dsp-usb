@@ -1,3 +1,4 @@
+#include <linux/vmalloc.h>
 /************************************************************************
 (c) 2003-05, 3DSP Corporation, all rights reserved.  Duplication or
 reproduction of any part of this software (source code, object code or
@@ -181,18 +182,14 @@ NTSTATUS BtAddDevice(PBT_DEVICE_EXT devExt)
 	RtlCopyMemory(devExt->MyVersion, BT_STRING_VERSION_ID, sizeof(BT_STRING_VERSION_ID));
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
-	init_timer(&devExt->BtWorkitem.timer);
-	INIT_WORK(&devExt->BtWorkitem.work, BtWatchdogItem);
-	init_timer(&devExt->cmd_work.timer);
-    INIT_WORK(&devExt->cmd_work.work, thread_processing_cmd);
-    
+	INIT_DELAYED_WORK(&devExt->BtWorkitem, BtWatchdogItem);
+	INIT_DELAYED_WORK(&devExt->cmd_work, thread_processing_cmd);
+
     // Diagnose related init
     INIT_WORK(&devExt->diagWork, DiagWorkFunc);
-#else	
-	init_timer(&devExt->BtWorkitem.timer);	
-	INIT_WORK(&devExt->BtWorkitem, BtWatchdogItem, devExt);	
-	init_timer(&devExt->cmd_work.timer);      
-	INIT_WORK(&devExt->cmd_work, thread_processing_cmd, devExt);          
+#else
+	INIT_WORK(&devExt->BtWorkitem, BtWatchdogItem, devExt);
+	INIT_WORK(&devExt->cmd_work, thread_processing_cmd, devExt);
 	INIT_WORK(&devExt->diagWork, DiagWorkFunc, devExt);
 #endif
     init_waitqueue_head(&devExt->diagEvent);
@@ -484,7 +481,9 @@ NTSTATUS BtStartDevice(PBT_DEVICE_EXT devExt)
 */
 		BtUsb_Bus_Reset_Enable(devExt);
 		Process = 14;
-		devExt->StartStage = START_STAGE_MAINLOOP;
+		/* Port fix: do NOT set StartStage=MAINLOOP here. Leave START_STAGE_INIT
+		 * so the START_STAGE_MAINLOOP task (fired below) is allowed to run the
+		 * 2-phase start; BtStartDevice_2Phase sets MAINLOOP when done. */
 		devExt->devRdyOk = 1;
 		if(devExt->ComboState == FW_WORK_MODE_SINGLE)
 		{
@@ -497,7 +496,19 @@ NTSTATUS BtStartDevice(PBT_DEVICE_EXT devExt)
 
 		atomic_set(&devExt->devRdyFlag, EVENT_SIGNED);
 		wake_up_interruptible(&devExt->DevRdyEvt);
-		
+
+		/* Port fix: in the original flow the 8051 announces itself with a
+		 * WAIT (0x0d) interrupt ("wlan not exist, go my way") that triggers
+		 * the 2-phase start: reload DSP code and jump the 8051 to its main
+		 * loop. That interrupt is easily missed because the INT URB is
+		 * submitted only after the download, so fire phase 2 ourselves.
+		 * Without it the DSP stays in "min process" and the baseband
+		 * (inquiry scan responses, page, ...) never starts. */
+		{
+			UINT8 tmpVar = 1;	/* mode 1: reload DSP code */
+			Task_CreateTask((PBT_TASK_T)devExt->pTask, BT_TASK_NORMAL_EVENT(BT_TASK_EVENT_START_STAGE_MAINLOOP), BT_TASK_PRI_NORMAL, &tmpVar, 1);
+		}
+
 		FunctionOK = TRUE;
 	}
 	__finally

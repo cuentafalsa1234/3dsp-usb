@@ -44,10 +44,9 @@ static void *CreateTaskBlock(PBT_TASK_T pTask, void *pTaskFun)
 	if(pBlock){
 	pBlock->tmpFlag = 1;
 	pBlock->devExt = pTask->pDevExt;
-	init_timer(&pBlock->dwork.timer);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)		
-	INIT_WORK(&pBlock->dwork.work, pTaskFun);
-#else		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+	INIT_DELAYED_WORK(&pBlock->dwork, pTaskFun);
+#else
 	INIT_WORK(&pBlock->dwork, pTaskFun, pBlock);
 #endif
 	}
@@ -56,7 +55,11 @@ static void *CreateTaskBlock(PBT_TASK_T pTask, void *pTaskFun)
 
 static void FreeTaskBlock(PTASK_DATA_BLOCK_T pBlock)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+    cancel_delayed_work_sync(&pBlock->dwork);
+#else
     del_timer(&pBlock->dwork.timer);
+#endif
     kfree(pBlock);
 }
 
@@ -761,13 +764,12 @@ NTSTATUS Task_Init(PBT_DEVICE_EXT devExt)
 		pTaskBlock[i].tmpFlag = 0;
 
 		pTaskBlock[i].devExt = (PVOID)devExt;
-		init_timer(&pTaskBlock[i].dwork.timer);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)		
-		INIT_WORK(&pTaskBlock[i].dwork.work, Task_ThreadRoutine);
-#else		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+		INIT_DELAYED_WORK(&pTaskBlock[i].dwork, Task_ThreadRoutine);
+#else
 		INIT_WORK(&pTaskBlock[i].dwork, Task_ThreadRoutine, &pTaskBlock[i]);
 #endif
-		
+
 	}
 	for (i = MAXTASKN/2; i < MAXTASKN; i++)
 	{
@@ -776,10 +778,9 @@ NTSTATUS Task_Init(PBT_DEVICE_EXT devExt)
 		pTaskBlock[i].tmpFlag = 0;
 
 		pTaskBlock[i].devExt = (PVOID)devExt;
-		init_timer(&pTaskBlock[i].dwork.timer);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)		
-		INIT_WORK(&pTaskBlock[i].dwork.work, Task_ThreadRoutine);
-#else		
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
+		INIT_DELAYED_WORK(&pTaskBlock[i].dwork, Task_ThreadRoutine);
+#else
 		INIT_WORK(&pTaskBlock[i].dwork, Task_ThreadRoutine, &pTaskBlock[i]);
 #endif
 	}

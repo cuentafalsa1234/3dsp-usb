@@ -99,7 +99,7 @@ int tdspbus_release( struct inode *inode, struct file *pfile )
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-int tdspbus_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg )
+long tdspbus_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg )
 #else
 int tdspbus_ioctl( struct inode *inode, struct file *pfile, unsigned int cmd, unsigned long arg )
 #endif
@@ -183,16 +183,18 @@ int tdspbus_ioctl( struct inode *inode, struct file *pfile, unsigned int cmd, un
         case IOCTL_BUSENUM_PLUGIN_HARDWARE:
 		tdspbus_trace();
             {
-                BUSENUM_PLUGIN_HARDWARE plugin_hardware;
+                unsigned char plugin_buffer[8 + MAX_HARDWARE_IDS_LEN + 4];
+                PBUSENUM_PLUGIN_HARDWARE plugin_hardware = (PBUSENUM_PLUGIN_HARDWARE)plugin_buffer;
                 ULONG len;
 
                 Bus_DebugPrint( "3DSP Bus Driver PlugIn called!\n" );
 
                 if ( !copy_from_user( &len, ( PVOID )arg, sizeof( ULONG )))
                 {
-                    if ( !copy_from_user( &plugin_hardware, ( PVOID )arg, len ))
+                    if ( len <= sizeof( plugin_buffer ) &&
+                         !copy_from_user( plugin_buffer, ( PVOID )arg, len ))
                     {
-                        status = Bus_PlugInDevice( &plugin_hardware, len, fdoData );
+                        status = Bus_PlugInDevice( plugin_hardware, len, fdoData );
                     }
                 }
                 break;

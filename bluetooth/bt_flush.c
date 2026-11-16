@@ -1,4 +1,5 @@
 #include "bt_sw.h"        // include <WDM.H> and data structure for us
+#include <linux/vmalloc.h>
 #include "bt_dbg.h"        // include debug function
 #include "bt_hal.h"        // include accessing hardware resources function
 #include "bt_hci.h"        // include some hci operation

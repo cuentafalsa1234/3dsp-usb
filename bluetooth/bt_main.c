@@ -786,7 +786,9 @@ void *register_HCI_device(void *dev)
         goto end;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	hdev->bus  = HCI_USB;	/* dev_type removed upstream */
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 	hdev->dev_type = HCI_BREDR;
 	hdev->bus  = HCI_USB; //add by lewis.wang
 #else

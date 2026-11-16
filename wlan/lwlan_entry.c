@@ -1,3 +1,4 @@
+#include <linux/vmalloc.h>
 /*************************************************************************
  *
  *	(c) 2004-05, 3DSP Corporation, all rights reserved.  Duplication or

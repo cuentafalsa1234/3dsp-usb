@@ -6099,9 +6099,13 @@ VOID BtWriteFHSPacket(PBT_DEVICE_EXT devExt, PCONNECT_DEVICE_T pTempConnectDevic
 VOID BtInitializeTimer(PBT_DEVICE_EXT devExt)
 {
 	//Init watchdog timer
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+	timer_setup(&devExt->watchDogTimer, BtWatchdogTimer, 0);
+#else
 	init_timer(&devExt->watchDogTimer);
 	devExt->watchDogTimer.function = BtWatchdogTimer;
 	devExt->watchDogTimer.data = (ULONG_PTR)devExt;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////

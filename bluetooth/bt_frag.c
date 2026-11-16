@@ -85,6 +85,7 @@ NTSTATUS Frag_Init(PBT_DEVICE_EXT devExt)
 	BT_DBGEXT(ZONE_FRG | LEVEL1, "Frag_Init Frag = 0x%x, size = %d\n", pFrag, sizeof(BT_FRAG_T));
 	/* Zero out the frag module space */
 	RtlZeroMemory(pFrag, sizeof(BT_FRAG_T));
+	pFrag->devExt = devExt;
 
 	//init spin_lock
 	KeInitializeSpinLock(&pFrag->FragTxLock);
@@ -120,10 +121,14 @@ NTSTATUS Frag_Init(PBT_DEVICE_EXT devExt)
 
 	//init tx timer for tx data
 	//KeInitializeTimer(&pFrag->TxTimer);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+	timer_setup(&pFrag->TxTimer, Frag_DataSendingTimer, 0);
+#else
 	init_timer(&pFrag->TxTimer);
 	pFrag->TxTimer.function = Frag_DataSendingTimer;
 	pFrag->TxTimer.data = (ULONG_PTR)devExt;
-	
+#endif
+
 	return (STATUS_SUCCESS);
 }
 
@@ -203,6 +208,25 @@ NTSTATUS Frag_Release(PBT_DEVICE_EXT devExt)
 
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+VOID Frag_DataSendingTimer(struct timer_list *t)
+{
+	struct timer_list *compat_ptr = t;
+	PBT_FRAG_T pFrag = from_timer(pFrag, compat_ptr, TxTimer);
+	PBT_DEVICE_EXT devExt;
+	NTSTATUS ntStatus = STATUS_SUCCESS;
+	UINT32	i;
+	UINT32	pduNum;
+	UINT8	TimerSrc;
+	KIRQL	oldIrql;
+
+	if (pFrag == NULL)
+		return;
+	devExt = pFrag->devExt;
+
+	UsbQueryDMASpace(devExt);
+}
+#else
 VOID Frag_DataSendingTimer(ULONG_PTR SystemContext)
 {
 	PBT_DEVICE_EXT devExt = (PBT_DEVICE_EXT)SystemContext;
@@ -219,6 +243,7 @@ VOID Frag_DataSendingTimer(ULONG_PTR SystemContext)
 
 	UsbQueryDMASpace(devExt);
 }
+#endif
 
 VOID Frag_CheckTxQueue(PBT_DEVICE_EXT devExt)
 {

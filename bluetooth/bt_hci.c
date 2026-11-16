@@ -4356,6 +4356,19 @@ void NotifyDspScanEnable(PBT_DEVICE_EXT devExt)
 	else{
 		Hci_Clear_Command_Indicator(devExt, BT_HCI_COMMAND_INDICATOR_WRITE_PAGE_SCAN_EN_BIT);
 	}
+	/* debug: read back the DSP command indicator to verify it landed */
+	{
+		UINT32 ind = 0;
+		UINT32 dspst = 0;
+		UINT32 txdis = 0;
+		UINT32 fhs0 = 0;
+		ind = Hci_Read_DWord_From_3DspReg(devExt, BT_REG_HCI_COMMAND_INDICATOR);
+		dspst = Hci_Read_DWord_From_3DspReg(devExt, BT_REG_DEBUG0);
+		txdis = Hci_Read_DWord_From_3DspReg(devExt, BT_REG_DSP_TX_DISABLE);
+		fhs0 = Hci_Read_DWord_From_3DspReg(devExt, BT_REG_FHS_FOR_INQUIRY_SCAN);
+		printk("NotifyDspScanEnable: scan_enable=%d indicador_DSP=0x%08x estado_DSP=0x%08x TX_DISABLE=0x%08x FHS[0]=0x%08x\n",
+		       ScanEnable, ind, dspst, txdis, fhs0);
+	}
 }
 
 /**************************************************************************
@@ -15880,7 +15893,8 @@ NTSTATUS Hci_Write_Command_Indicator(PBT_DEVICE_EXT devExt, UINT32 value)
 	pEle = RegApi_Fill_Cmd_Body(devExt, REGAPI_REG_SET_OPERATION,
 			BT_REG_DSP_TX_DISABLE, pEle, 1, &tempChar);
 	length = (UINT16)(pEle - buf);
-	RegAPI_SendTo_MailBox(devExt, buf, length);
+	Status = RegAPI_SendTo_MailBox(devExt, buf, length);
+	printk("Hci_Write_Command_Indicator: valor=0x%08x mailbox_status=0x%x\n", value, Status);
 #else
 	Status = UsbWriteTo3DspReg(devExt, BT_REG_DSP_TX_DISABLE, 0x4);
 	Status = UsbReadFrom3DspReg(devExt, BT_REG_HCI_COMMAND_INDICATOR, &ReadIndicator);
